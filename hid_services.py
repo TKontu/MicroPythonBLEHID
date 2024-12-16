@@ -21,6 +21,7 @@ import bluetooth
 import json
 import binascii
 from bluetooth import UUID
+from hid_services import HumanInterfaceDevice
 
 F_READ = bluetooth.FLAG_READ
 F_WRITE = bluetooth.FLAG_WRITE
@@ -634,30 +635,33 @@ class Joystick(HumanInterfaceDevice):
         )
 
         # fmt: off
-        self.HID_INPUT_REPORT = bytes([                                                                                 # USB Report Description: describes what we communicate.
-            0x05, 0x01,                                                                                                 # USAGE_PAGE (Generic Desktop)
-            0x09, 0x04,                                                                                                 # USAGE (Joystick)
-            0xa1, 0x01,                                                                                                 # COLLECTION (Application)
-            0x85, 0x01,                                                                                                 #   REPORT_ID (1)
-            0xa1, 0x00,                                                                                                 #   COLLECTION (Physical)
-            0x09, 0x30,                                                                                                 #     USAGE (X)
-            0x09, 0x31,                                                                                                 #     USAGE (Y)
-            0x15, 0x81,                                                                                                 #     LOGICAL_MINIMUM (-127)
-            0x25, 0x7f,                                                                                                 #     LOGICAL_MAXIMUM (127)
-            0x75, 0x08,                                                                                                 #     REPORT_SIZE (8)
-            0x95, 0x02,                                                                                                 #     REPORT_COUNT (2)
-            0x81, 0x02,                                                                                                 #     INPUT (Data,Var,Abs)
-            0x05, 0x09,                                                                                                 #     USAGE_PAGE (Button)
-            0x29, 0x08,                                                                                                 #     USAGE_MAXIMUM (Button 8)
-            0x19, 0x01,                                                                                                 #     USAGE_MINIMUM (Button 1)
-            0x95, 0x08,                                                                                                 #     REPORT_COUNT (8)
-            0x75, 0x01,                                                                                                 #     REPORT_SIZE (1)
-            0x25, 0x01,                                                                                                 #     LOGICAL_MAXIMUM (1)
-            0x15, 0x00,                                                                                                 #     LOGICAL_MINIMUM (0)
-            0x81, 0x02,                                                                                                 #     Input (Data, Variable, Absolute)
-            0xc0,                                                                                                       #   END_COLLECTION
-            0xc0                                                                                                        # END_COLLECTION
-        ])
+self.HID_INPUT_REPORT = bytes([
+    0x05, 0x01,                     # USAGE_PAGE (Generic Desktop)
+    0x09, 0x06,                     # USAGE (Keyboard)
+    0xA1, 0x01,                     # COLLECTION (Application)
+    0x85, 0x01,                     # REPORT_ID (1)
+    0x05, 0x07,                     # USAGE_PAGE (Keyboard/Keypad)
+    0x19, 0xE0,                     # USAGE_MINIMUM (Keyboard LeftControl)
+    0x29, 0xE7,                     # USAGE_MAXIMUM (Keyboard Right GUI)
+    0x15, 0x00,                     # LOGICAL_MINIMUM (0)
+    0x25, 0x01,                     # LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                     # REPORT_SIZE (1)
+    0x95, 0x08,                     # REPORT_COUNT (8)
+    0x81, 0x02,                     # INPUT (Data,Var,Abs)
+    0x95, 0x01,                     # REPORT_COUNT (1)
+    0x75, 0x08,                     # REPORT_SIZE (8)
+    0x81, 0x03,                     # INPUT (Const,Var,Abs)
+    0x95, 0x06,                     # REPORT_COUNT (6) (Keypress array)
+    0x75, 0x08,                     # REPORT_SIZE (8)
+    0x15, 0x00,                     # LOGICAL_MINIMUM (0)
+    0x25, 0x65,                     # LOGICAL_MAXIMUM (101)
+    0x05, 0x07,                     # USAGE_PAGE (Keyboard/Keypad)
+    0x19, 0x00,                     # USAGE_MINIMUM (Reserved (no event indicated))
+    0x29, 0x65,                     # USAGE_MAXIMUM (Keyboard Application)
+    0x81, 0x00,                     # INPUT (Data,Ary,Abs)
+    0xC0                            # END_COLLECTION
+])
+
         # fmt: on
 
         # Define the initial joystick state.
@@ -739,6 +743,14 @@ class Joystick(HumanInterfaceDevice):
         self.button6 = b6
         self.button7 = b7
         self.button8 = b8
+
+def set_encoders(self, encoder_states):
+    # encoder_states: List of 3 values for the encoders
+    self.keypresses[0] = encoder_states[0]  # Map encoders to specific key codes
+    self.keypresses[1] = encoder_states[1]
+    self.keypresses[2] = encoder_states[2]
+
+
 
 # Class that represents the Mouse service.
 class Mouse(HumanInterfaceDevice):
@@ -1011,3 +1023,107 @@ class Keyboard(HumanInterfaceDevice):
     # Should take a tuple with the report bytes.
     def set_kb_callback(self, kb_callback):
         self.kb_callback = kb_callback
+
+class CustomKeyboard(HumanInterfaceDevice):
+    def __init__(self, name="Custom HID Device"):
+        super().__init__(name)  # Initialize base HID services
+        self.device_appearance = 961  # Appearance: Keyboard (961)
+
+        # HID Service Descriptor
+        self.HIDS = (
+            UUID(0x1812),  # Human Interface Device Service
+            (
+                (UUID(0x2A4A), const(0x02)),  # HID Information (Read)
+                (UUID(0x2A4B), const(0x02)),  # HID Report Map (Read)
+                (UUID(0x2A4C), const(0x08)),  # HID Control Point (Write No Response)
+                (UUID(0x2A4D), const(0x10), (  # HID Input Report (Notify)
+                    (UUID(0x2902), const(0x01 | 0x02)),  # Client Configuration
+                )),
+                (UUID(0x2A4E), const(0x02)),  # HID Protocol Mode (Read/Write)
+            ),
+        )
+
+        # HID Input Report Descriptor
+        self.HID_INPUT_REPORT = bytes([
+            0x05, 0x01,                     # USAGE_PAGE (Generic Desktop)
+            0x09, 0x06,                     # USAGE (Keyboard)
+            0xA1, 0x01,                     # COLLECTION (Application)
+            0x85, 0x01,                     # REPORT_ID (1)
+            0x05, 0x07,                     # USAGE_PAGE (Keyboard/Keypad)
+
+            # Buttons (5 bits)
+            0x19, 0x01,                     # USAGE_MINIMUM (Button 1)
+            0x29, 0x05,                     # USAGE_MAXIMUM (Button 5)
+            0x15, 0x00,                     # LOGICAL_MINIMUM (0)
+            0x25, 0x01,                     # LOGICAL_MAXIMUM (1)
+            0x75, 0x01,                     # REPORT_SIZE (1)
+            0x95, 0x05,                     # REPORT_COUNT (5)
+            0x81, 0x02,                     # INPUT (Data, Var, Abs)
+
+            # Padding for alignment
+            0x75, 0x03,                     # REPORT_SIZE (3)
+            0x95, 0x01,                     # REPORT_COUNT (1)
+            0x81, 0x03,                     # INPUT (Constant)
+
+            # Encoders (3 bytes for X, Y, Z)
+            0x05, 0x01,                     # USAGE_PAGE (Generic Desktop)
+            0x09, 0x30,                     # USAGE (X)
+            0x09, 0x31,                     # USAGE (Y)
+            0x09, 0x32,                     # USAGE (Z)
+            0x15, 0x81,                     # LOGICAL_MINIMUM (-127)
+            0x25, 0x7F,                     # LOGICAL_MAXIMUM (127)
+            0x75, 0x08,                     # REPORT_SIZE (8)
+            0x95, 0x03,                     # REPORT_COUNT (3)
+            0x81, 0x02,                     # INPUT (Data, Var, Rel)
+
+            0xC0                            # END_COLLECTION
+        ])
+
+        # State Variables
+        self.buttons = [0, 0, 0, 0, 0]  # 5 buttons
+        self.encoders = [0, 0, 0]  # X, Y, Z encoders
+
+        # Add HID Service to the list
+        self.services = [self.DIS, self.BAS, self.HIDS]
+
+    def start(self):
+        """Start the Custom Keyboard Service."""
+        super().start()  # Start the base services
+        print("Registering Custom Keyboard Services")
+        handles = self._ble.gatts_register_services(self.services)
+        self.save_service_characteristics(handles)
+        self.write_service_characteristics()
+
+        # Create Advertiser
+        self.adv = Advertiser(self._ble, [UUID(0x1812)], appearance=self.device_appearance, name=self.device_name)
+        print(f"Device {self.device_name} started and advertising")
+
+    def save_service_characteristics(self, handles):
+        """Save HID-specific characteristics."""
+        super().save_service_characteristics(handles)
+        (_, _, _, self.h_input_report, _, _, _) = handles[2]  # Handle HID Input Report
+        self.characteristics[self.h_input_report] = ("HID Input Report", self.pack_hid_report())
+
+    def pack_hid_report(self):
+        """Pack the HID report data."""
+        buttons_byte = sum(b << i for i, b in enumerate(self.buttons))
+        encoders_bytes = struct.pack("bbb", *self.encoders)
+        return struct.pack("B", buttons_byte) + encoders_bytes
+
+    def notify_hid_report(self):
+        """Notify the host with the current HID report."""
+        if self.is_connected():
+            report = self.pack_hid_report()
+            self.characteristics[self.h_input_report] = ("HID Input Report", report)
+            self._ble.gatts_notify(self.conn_handle, self.h_input_report, report)
+            print(f"Notified report: {report}")
+
+    def set_buttons(self, b1, b2, b3, b4, b5):
+        """Set the state of the buttons."""
+        self.buttons = [b1, b2, b3, b4, b5]
+
+    def set_encoders(self, x, y, z):
+        """Set the state of the encoders."""
+        self.encoders = [x, y, z]
+
+
